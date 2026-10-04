@@ -1,0 +1,51 @@
+name: Build ESP32 Firmware
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ESP-IDF Binaries
+    runs-on: ubuntu-latest
+    container: espressif/idf:release-v5.1
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Fix Git Permissions
+        run: git config --global --add safe.directory '*'
+
+      - name: Build Firmware
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+
+          # Locate the folder containing the project CMakeLists.txt
+          if [ -f "CMakeLists.txt" ]; then
+            PROJECT_DIR="."
+          elif [ -f "esp32cam_phone/CMakeLists.txt" ]; then
+            PROJECT_DIR="esp32cam_phone"
+          elif [ -f "esp32cam_bluetooth_ai/CMakeLists.txt" ]; then
+            PROJECT_DIR="esp32cam_bluetooth_ai"
+          else
+            PROJECT_DIR=$(find . -maxdepth 2 -name "CMakeLists.txt" -not -path "*/main/*" -exec dirname {} \; | head -n 1)
+          fi
+
+          echo "Building in directory: $PROJECT_DIR"
+          cd "$PROJECT_DIR"
+
+          idf.py set-target esp32
+          idf.py build
+
+      - name: Upload Binary Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32cam-binaries
+          path: |
+            **/build/bootloader/bootloader.bin
+            **/build/partition_table/partition-table.bin
+            **/build/*.bin
+            
